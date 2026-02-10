@@ -117,25 +117,34 @@ export async function fetchStocksOnWarehouses(skus) {
   const body = { skus };
   const data = await apiRequest('/v1/analytics/stocks', body);
 
-  const stocks = [];
   const items = data.items || [];
+  const grouped = new Map();
 
   for (const item of items) {
-    stocks.push({
-      sku: item.sku,
-      productId: null,
-      offerId: item.offer_id,
-      productName: item.name,
-      warehouseId: item.cluster_id,
-      warehouseName: item.cluster_name,
-      itemCode: null,
-      freeToSellAmount: item.available_stock_count || 0,
-      promisedAmount: item.transit_stock_count || 0,
-      reservedAmount: item.requested_stock_count || 0
-    });
+    const key = `${item.sku}_${item.cluster_id}`;
+
+    if (grouped.has(key)) {
+      const existing = grouped.get(key);
+      existing.freeToSellAmount += item.available_stock_count || 0;
+      existing.promisedAmount += item.transit_stock_count || 0;
+      existing.reservedAmount += item.requested_stock_count || 0;
+    } else {
+      grouped.set(key, {
+        sku: item.sku,
+        productId: null,
+        offerId: item.offer_id,
+        productName: item.name,
+        warehouseId: item.cluster_id,
+        warehouseName: item.cluster_name,
+        itemCode: item.item_code || null,
+        freeToSellAmount: item.available_stock_count || 0,
+        promisedAmount: item.transit_stock_count || 0,
+        reservedAmount: item.requested_stock_count || 0
+      });
+    }
   }
 
-  return stocks;
+  return Array.from(grouped.values());
 }
 
 export async function* fetchAllFboStocks(skus) {
@@ -150,19 +159,34 @@ export async function* fetchAllFboStocks(skus) {
 
     const items = data.items || [];
 
+    const grouped = new Map();
+
     for (const item of items) {
-      yield {
-        sku: item.sku,
-        productId: null,
-        offerId: item.offer_id,
-        productName: item.name,
-        warehouseId: item.cluster_id,
-        warehouseName: item.cluster_name,
-        itemCode: null,
-        freeToSellAmount: item.available_stock_count || 0,
-        promisedAmount: item.transit_stock_count || 0,
-        reservedAmount: item.requested_stock_count || 0
-      };
+      const key = `${item.sku}_${item.cluster_id}`;
+
+      if (grouped.has(key)) {
+        const existing = grouped.get(key);
+        existing.freeToSellAmount += item.available_stock_count || 0;
+        existing.promisedAmount += item.transit_stock_count || 0;
+        existing.reservedAmount += item.requested_stock_count || 0;
+      } else {
+        grouped.set(key, {
+          sku: item.sku,
+          productId: null,
+          offerId: item.offer_id,
+          productName: item.name,
+          warehouseId: item.cluster_id,
+          warehouseName: item.cluster_name,
+          itemCode: item.item_code || null,
+          freeToSellAmount: item.available_stock_count || 0,
+          promisedAmount: item.transit_stock_count || 0,
+          reservedAmount: item.requested_stock_count || 0
+        });
+      }
+    }
+
+    for (const stock of grouped.values()) {
+      yield stock;
     }
 
     if (i + batchSize < skus.length) {
